@@ -10,21 +10,33 @@ namespace RandomGraph
     class Program
     {
         static List<Person> population;
+
         static void Main(string[] args)
         {
-            population = Enumerable.Range(0,10).Select(i=>GetRandomN()).ToList();
+            population = Enumerable.Range(0,25).Select(i=>GetRandomPerson()).ToList();
 
             for (int i = 0; i < 1e7; i++)
                 MarrySomeone();
 
+            Console.WriteLine("До фильтра несвязных персон {0} человек",population.Count);
 
+            population = population.Where(p => p.Father != null || p.Sucsessors.Count > 0).ToList();
+            Console.WriteLine("После {0} человек", population.Count);
+
+            var ids = new HashSet<string>();
             foreach (var person in population)
             {
+                person.GenerateKey(ids);
                 Console.WriteLine(person);
             }
+
+
             Console.ReadLine();
         }
 
+        /// <summary>
+        /// Попытка создания случайного брака
+        /// </summary>
         private static void MarrySomeone()
         {
             var man = GetRandomSymbol(population);
@@ -62,7 +74,13 @@ namespace RandomGraph
                 ProduceAChild(man, woman);
             }
         }
-
+        
+        /// <summary>
+        /// Тест инцеста
+        /// </summary>
+        /// <param name="man"></param>
+        /// <param name="woman"></param>
+        /// <returns></returns>
         private static bool IsIncest(Person man, Person woman)
         {
             if (woman.Mother == null || man.Mother == null)
@@ -110,9 +128,14 @@ namespace RandomGraph
             return false;
         }
 
+        /// <summary>
+        /// Генерирование потомка
+        /// </summary>
+        /// <param name="father"></param>
+        /// <param name="mother"></param>
         private static void ProduceAChild(Person father, Person mother)
         {
-            var person = GetRandomN();
+            var person = GetRandomPerson();
             person.F = father.F;
             person.BirthDay =
                 (mother.BirthDay > father.BirthDay ? mother.BirthDay : father.BirthDay).AddYears(16)
@@ -126,11 +149,13 @@ namespace RandomGraph
             else
             person.O = patronimics[indexOf];
             population.Add(person);
+            father.Sucsessors.Add(person);
+            mother.Sucsessors.Add(person);
         }
 
 
         /// <summary>
-        /// Словарь имён
+        /// Словарь мужских имён
         /// </summary>
         static string[] names = new[]{
                 "Андрей",
@@ -148,6 +173,9 @@ namespace RandomGraph
                 "Дмитрий"
             };
 
+        /// <summary>
+        /// женские имена
+        /// </summary>
         static string[] wnames = new[]{
                 "Алёна",
                 "Елена",
@@ -225,7 +253,11 @@ namespace RandomGraph
             "ов","ин","ев","ин"
         };
 
-        private static Person GetRandomN()
+        /// <summary>
+        /// Генерирвоание случайного человека
+        /// </summary>
+        /// <returns></returns>
+        private static Person GetRandomPerson()
         {
             var sb = new StringBuilder();
 
@@ -280,17 +312,18 @@ namespace RandomGraph
 
     internal class Person
     {
-        private string f, i, o;
+        private string f, _i, o;
         private readonly bool _woman;
         private DateTime _birthDay;
 
         public Person(string f, string i, string o, bool woman, DateTime birthDay)
         {
             this.f = f;
-            this.i = i;
+            this._i = i;
             this.o = o;
             _woman = woman;
             _birthDay = birthDay;
+            Sucsessors = new List<Person>();
         }
 
         public string F
@@ -301,7 +334,7 @@ namespace RandomGraph
 
         public string I
         {
-            get { return i; }
+            get { return _i; }
         }
 
         public string O
@@ -321,14 +354,45 @@ namespace RandomGraph
             set { _birthDay = value; }
         }
 
+        public string Key { get; set; }
+
+        /// <summary>
+        /// Генерация ключа
+        /// </summary>
+        /// <param name="used"></param>
+        public void GenerateKey(HashSet<string> used)
+        {
+            if(TryKey(used, f))
+                return;
+            if(TryKey(used, f+BirthDay.Year))
+                return;
+            if(TryKey(used, f+_i+BirthDay.Year))
+                return;
+            for(int i=0;;i++)
+                if (TryKey(used, f + i))
+                    return;
+        }
+
+        private bool TryKey(HashSet<string> used, string key)
+        {
+            if (used.Add(key))
+            {
+                Key = key;
+                return true;
+            }
+            return false;
+        }
+
         public Person Spouse { get; set; }
         public Person Father { get; set; }
         public Person Mother { get; set; }
+
+        public List<Person> Sucsessors { get; set; }
         public string MaidenName { get; set; }
 
         public override string ToString()
         {
-            var format = string.Format("F: {0}, I: {1}, O: {2}, Woman: {3}, BirthDay: {4}", f, i, o, _woman, _birthDay);
+            var format = string.Format("{5} F: {0}, I: {1}, O: {2}, Woman: {3}, BirthDay: {4}", f, _i, o, _woman, _birthDay,Key);
             
             return format;
         }
