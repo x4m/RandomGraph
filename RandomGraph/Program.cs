@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Policy;
 using System.Text;
@@ -10,6 +11,10 @@ namespace RandomGraph
     class Program
     {
         static List<Person> population;
+
+        static List<string> script = new List<string>();
+
+        static HashSet<Person> scripted = new HashSet<Person>();
 
         static void Main(string[] args)
         {
@@ -30,8 +35,42 @@ namespace RandomGraph
                 Console.WriteLine(person);
             }
 
+            foreach (var person in population)
+                Script(person);
 
-            Console.ReadLine();
+            File.WriteAllText("script.txt", "CREATE " + string.Join(", " + Environment.NewLine, script));
+
+            Console.ReadKey();
+        }
+
+        /// <summary>
+        /// Генерирование скрипта для конкретного челвоека с проверкой всех пререквизитов
+        /// </summary>
+        /// <param name="person"></param>
+        private static void Script(Person person)
+        {
+            if(person==null)
+                return;
+            if(!scripted.Add(person))
+                return;
+            script.Add(CreateQuery(person));
+            Script(person.Father);
+            Script(person.Mother);
+            Script(person.Spouse);
+            if (!person.Woman && person.Spouse != null)
+                script.Add(string.Format("({0})-[:Супруги]->({1})", person.Key, person.Spouse.Key));
+            if (person.Father != null)
+            {
+                script.Add(string.Format("({0})-[:Потомок{{Рождён:\"{2}\"}}]->({1})", person.Father.Key, person.Key, person.BirthDay.ToString("yyyy-MM-dd")));
+                script.Add(string.Format("({0})-[:Потомок{{Рождён:\"{2}\"}}]->({1})", person.Mother.Key, person.Key, person.BirthDay.ToString("yyyy-MM-dd")));
+            }
+        }
+
+        private static string CreateQuery(Person person)
+        {
+            if(person.MaidenName!=null)
+                return string.Format("({0}:{1}{{Имя:\"{2}\",Фамилия:\"{3}\",Отчество:\"{4}\",`Дата Рождения`:\"{5}\",`Девичья фамилия`:\"{6}\"}})", person.Key, person.Woman ? "Женьщина" : "Мужчина", person.I, person.F, person.O, person.BirthDay.ToString("yyyy-MM-dd"), person.MaidenName);
+            return string.Format("({0}:{1}{{Имя:\"{2}\",Фамилия:\"{3}\",Отчество:\"{4}\",`Дата Рождения`:\"{5}\"}})", person.Key, person.Woman ? "Женьщина" : "Мужчина", person.I, person.F, person.O, person.BirthDay.ToString("yyyy-MM-dd"));
         }
 
         /// <summary>
@@ -140,6 +179,8 @@ namespace RandomGraph
             person.BirthDay =
                 (mother.BirthDay > father.BirthDay ? mother.BirthDay : father.BirthDay).AddYears(16)
                     .AddDays(rnd.Next(40*365));
+            person.Father = father;
+            person.Mother = mother;
             var indexOf = Array.IndexOf(names,father.I);
             if (person.Woman)
             {
